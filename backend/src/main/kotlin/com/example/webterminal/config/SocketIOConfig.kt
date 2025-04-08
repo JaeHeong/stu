@@ -10,8 +10,8 @@ class SocketIOConfig {
     @Bean
     fun socketIOServer(): SocketIOServer {
         return com.corundumstudio.socketio.Configuration().apply {
-            hostname = "localhost"
-            port = 8081
+            // hostname = "localhost"  // <-- 이렇게 주석 처리하거나 라인 삭제
+            port = 9090
             socketConfig = SocketConfig().apply {
                 isReuseAddress = true
             }

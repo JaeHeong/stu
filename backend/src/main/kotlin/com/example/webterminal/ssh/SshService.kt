@@ -15,8 +15,8 @@ class SshService(
         (sshSessionCache.findByUUID(socketIOClient.sessionId)
             ?: SshSession(
                 remoteUser = "root", // Change this to your username
-                remoteHost = "13.125.251.155",
-                remotePassword = "1234QWer", // Change this to your password
+                remoteHost = "localhost",
+                remotePassword = "password", // Change this to your password
                 onByteArrayEvent = {
                     sshSocketIOService.sendUpdateMessage(
                         socketIOClient,
