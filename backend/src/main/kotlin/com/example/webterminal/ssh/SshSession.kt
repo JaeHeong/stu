@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.*
+import java.lang.StringBuilder // StringBuilder import 추가
 
 class SshSession(
     private val remoteUser: String,
@@ -43,10 +44,24 @@ class SshSession(
 
         channel = remoteSession.openChannel("shell") as ChannelShell
         out = channel.outputStream
-
         channel.connect()
 
-        write("/bin/bash\n")
+        val region = System.getenv("AWS_REGION") ?: ""
+        val accessKey = System.getenv("AWS_ACCESS_KEY_ID") ?: ""
+        val secretKey = System.getenv("AWS_SECRET_ACCESS_KEY") ?: ""
+        val profile = System.getenv("AWS_PROFILE")
+
+        val command = StringBuilder()
+
+        if (accessKey.isNotEmpty()) command.append("AWS_ACCESS_KEY_ID='${accessKey}' ")
+        if (secretKey.isNotEmpty()) command.append("AWS_SECRET_ACCESS_KEY='${secretKey}' ")
+        if (region.isNotEmpty()) command.append("AWS_REGION='${region}' ")
+        if (profile?.isNotEmpty() == true) command.append("AWS_PROFILE='${profile}' ")
+
+        command.append("exec /usr/local/bin/stu\n")
+
+        write(command.toString())
+
         startChannel(channel.inputStream)
     }
 
