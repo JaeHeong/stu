@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Terminal</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #1e1e1e;
+            color: #f0f0f0;
+        }
+        #header {
+            background-color: #333;
+            padding: 10px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        #terminal-container {
+            flex: 1;
+            padding: 10px;
+            background-color: #000;
+            margin: 10px;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        #connect-btn {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        #status {
+            margin-left: 20px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h2>Web Terminal</h2>
+        <button id="connect-btn">Connect to Terminal</button>
+        <span id="status">Disconnected</span>
+    </div>
+    <div id="terminal-container"></div>
+
+    <script>
+        // Initialize Terminal
+        const terminal = new Terminal({
+            cursorBlink: true,
+            fontSize: 14,
+            fontFamily: 'Courier New, monospace',
+            theme: {
+                background: '#000',
+                foreground: '#f0f0f0'
+            }
+        });
+        
+        terminal.open(document.getElementById('terminal-container'));
+        
+        // Socket.IO Setup
+        const socket = io('http://localhost:8081/ssh', {
+            transports: ['websocket'],
+            autoConnect: false
+        });
+        
+        const connectBtn = document.getElementById('connect-btn');
+        const statusSpan = document.getElementById('status');
+        
+        // Connect button handler
+        connectBtn.addEventListener('click', () => {
+            if (!socket.connected) {
+                socket.connect();
+                statusSpan.textContent = 'Connecting...';
+            } else {
+                socket.disconnect();
+                statusSpan.textContent = 'Disconnected';
+            }
+        });
+        
+        // Socket events
+        socket.on('connect', () => {
+            statusSpan.textContent = 'Connected';
+            terminal.clear();
+            socket.emit('connectTerminal');
+            
+            connectBtn.textContent = 'Disconnect';
+        });
+        
+        socket.on('disconnect', () => {
+            statusSpan.textContent = 'Disconnected';
+            connectBtn.textContent = 'Connect to Terminal';
+        });
+        
+        socket.on('update', (data) => {
+            terminal.write(data);
+        });
+        
+        socket.on('eof', () => {
+            terminal.writeln('\r\nConnection closed by the server');
+            socket.disconnect();
+        });
+        
+        socket.on('error', (message) => {
+            terminal.writeln(`\r\nError: ${message}`);
+        });
+        
+        // Terminal input
+        terminal.onData((data) => {
+            if (socket.connected) {
+                socket.emit('type', data);
+            }
+        });
+        
+        // Show welcome message
+        terminal.writeln('Welcome to Web Terminal!');
+        terminal.writeln('Click the Connect button to start.');
+    </script>
+</body>
+</html>

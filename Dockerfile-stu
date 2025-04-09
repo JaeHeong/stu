@@ -1,0 +1,68 @@
+# --- Stage 1: stu (Rust) 빌드 추가 ---
+    FROM rust:latest AS stu-builder
+    # 필요시 빌드 의존성 설치 (예: libssl-dev 등. stu 프로젝트에 따라 다름)
+    # RUN apt-get update && apt-get install -y build-essential libssl-dev pkg-config
+    WORKDIR /usr/src/app
+    COPY stu/ ./
+    # Release 모드로 빌드 (최적화)
+    RUN cargo build --release
+    
+    # Stage 2: Backend 빌드 (Gradle & Java 21 사용) - 이전과 동일
+    FROM gradle:jdk21 AS backend-builder
+    WORKDIR /app/backend
+    COPY backend/build.gradle.kts backend/pom.xml ./
+    COPY backend/src ./src
+    RUN gradle build --no-daemon -x test
+    
+    # Stage 3: Frontend 빌드 (Node.js 사용) - 이전과 동일
+    FROM node:20 AS frontend-builder
+    WORKDIR /app/front
+    COPY front/package.json front/package-lock.json ./
+    RUN npm install
+    COPY front/ ./
+    RUN npm run build
+    
+    # Stage 4: 최종 이미지 생성 (Ubuntu 기반)
+    FROM ubuntu:22.04
+    
+    ENV DEBIAN_FRONTEND=noninteractive
+    # --- stu 실행에 필요한 런타임 라이브러리 추가 (필요한 경우) ---
+    # 예: RUN apt-get update && apt-get install -y libssl3 ca-certificates && rm -rf /var/lib/apt/lists/*
+    RUN apt-get update && apt-get install -y --no-install-recommends \
+        openssh-server \
+        openjdk-21-jre-headless \
+        supervisor \
+        nginx \
+        procps \
+        curl \
+        sed \
+        ca-certificates \
+        && apt-get clean \
+        && rm -rf /var/lib/apt/lists/*
+    
+    RUN mkdir -p /var/run/sshd
+    RUN echo "root:password" | chpasswd
+    RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config \
+        && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config \
+        && sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config \
+        && sed -i 's/#ListenAddress 0.0.0.0/ListenAddress 0.0.0.0/' /etc/ssh/sshd_config \
+        && sed -i 's/#ListenAddress ::/ListenAddress ::/' /etc/ssh/sshd_config \
+        && echo "AcceptEnv LANG LC_*" >> /etc/ssh/sshd_config
+    
+    WORKDIR /app
+    COPY --from=backend-builder /app/backend/build/libs/*.jar ./backend.jar
+    COPY --from=frontend-builder /app/front/build /var/www/html/front
+    
+    # --- 빌드된 stu 바이너리 복사 및 실행 권한 부여 ---
+    COPY --from=stu-builder /usr/src/app/target/release/stu /usr/local/bin/stu
+    RUN chmod +x /usr/local/bin/stu
+    
+    COPY nginx.conf /etc/nginx/sites-available/default
+    RUN ln -sf /dev/stdout /var/log/nginx/access.log \
+        && ln -sf /dev/stderr /var/log/nginx/error.log
+    
+    COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+    
+    EXPOSE 8081
+    
+    CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

@@ -1,0 +1,28 @@
+# Git 관련 파일
+.git
+.gitignore
+
+# Node.js 관련
+front/node_modules
+front/build
+front/npm-debug.log*
+front/yarn-debug.log*
+front/yarn-error.log*
+
+# Backend 관련
+backend/.gradle
+backend/build
+backend/out
+backend/target
+
+# IDE 관련
+.idea
+*.iml
+.vscode
+
+# OS 관련
+.DS_Store
+Thumbs.db
+
+# 로그 파일
+*.log
